@@ -2,7 +2,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=samba
-PKG_VERSION:=4.14.12
+PKG_VERSION:=4.15.10
 PKG_RELEASE:=$(AUTORELEASE)
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
@@ -13,9 +13,8 @@ PKG_SOURCE_URL:= \
 		http://www.nic.funet.fi/index/samba/pub/samba/stable/ \
 		http://samba.mirror.bit.nl/samba/ftp/stable/ \
 		https://download.samba.org/pub/samba/stable/
-PKG_HASH:=155d9c2dfb06a18104422987590858bfe5e9783ebebe63882e7e7f07eaaa512d
+PKG_HASH:=19a0206cb9750f8204e51e8bf1b5e7808d997559b9cf9923b3ba6bf473846cf8
 
-PKG_MAINTAINER:=Andy Walsh <andy.walsh44+github@gmail.com>
 PKG_LICENSE:=GPL-3.0-only
 PKG_LICENSE_FILES:=COPYING
 PKG_CPE_ID:=cpe:/a:samba:samba
@@ -40,9 +39,9 @@ include $(INCLUDE_DIR)/package.mk
 include $(INCLUDE_DIR)/host-build.mk
 include $(INCLUDE_DIR)/kernel.mk
 include $(INCLUDE_DIR)/version.mk
-include $(TOPDIR)/feeds/packages/lang/python/python3-host.mk
-include $(TOPDIR)/feeds/packages/lang/python/python3-package.mk
-include $(TOPDIR)/feeds/packages/lang/perl/perlver.mk
+include ../../lang/python/python3-host.mk
+include ../../lang/python/python3-package.mk
+include ../../lang/perl/perlver.mk
 
 define Package/samba4/Default
   SECTION:=net
@@ -178,7 +177,6 @@ CONFIGURE_ARGS += \
 		--without-automount \
 		--without-iconv \
 		--without-lttng \
-		--without-ntvfs-fileserver \
 		--without-pam \
 		--without-systemd \
 		--without-utmp \
@@ -203,7 +201,6 @@ HOST_CONFIGURE_ARGS += \
 		--without-automount \
 		--without-iconv \
 		--without-lttng \
-		--without-ntvfs-fileserver \
 		--without-pam \
 		--without-systemd \
 		--without-utmp \
@@ -215,7 +212,7 @@ HOST_CONFIGURE_ARGS += \
 
 HOST_CONFIGURE_ARGS += --disable-avahi --without-quotas --without-acl-support --without-winbind \
 	--without-ad-dc --without-json --without-libarchive --disable-python --nopyc --nopyo \
-	--without-dnsupdate --without-ads --without-ldap --without-ldb-lmdb
+	--without-ads --without-ldap --without-ldb-lmdb
 
 # Optional AES-NI support - https://lists.samba.org/archive/samba-technical/2017-September/122738.html
 # Support for Nettle wasn't comitted
@@ -247,7 +244,7 @@ ifeq ($(CONFIG_SAMBA4_SERVER_AD_DC),y)
 	CONFIGURE_ARGS += --without-winbind --without-ldb-lmdb --with-acl-support
 else
 	CONFIGURE_ARGS += --without-winbind --without-ads --without-ldap --without-ldb-lmdb --without-ad-dc \
-		--without-json --without-libarchive --disable-python --nopyc --nopyo --without-dnsupdate --without-acl-support
+		--without-json --without-libarchive --disable-python --nopyc --nopyo --without-acl-support
 endif
 
 SAMBA4_PDB_MODULES :=pdb_smbpasswd,pdb_tdbsam,
@@ -328,6 +325,10 @@ define Host/Prepare
 	$(call Host/Prepare/Default)
 	$(SED) 's,mandatory=True,mandatory=False,g' $(HOST_BUILD_DIR)/wscript_configure_system_gnutls
 	$(SED) 's,gnutls_version =.*,gnutls_version = gnutls_min_required_version,g' $(HOST_BUILD_DIR)/wscript_configure_system_gnutls
+	#$(SED) 's/conf.cmd_and_log(conf.env.PKGCONFIG + ['--modversion', 'gnutls']).strip()/3.7.7/g' $(HOST_BUILD_DIR)/wscript_configure_system_gnutls
+	$(SED) 's/gnutls_version_str.*/gnutls_version_str = "3.7.7"/g' $(HOST_BUILD_DIR)/wscript_configure_system_gnutls
+	$(SED) 's/(gnutls_version > .*/(parse_version(gnutls_version) > parse_version("3.6.10")):/g' $(HOST_BUILD_DIR)/wscript_configure_system_gnutls
+	$(SED) 's/(gnutls_version < .*/(parse_version(gnutls_version) < parse_version("3.5.2")):/g' $(HOST_BUILD_DIR)/wscript_configure_system_gnutls
 endef
 define Host/Compile
 	(cd $(HOST_BUILD_DIR); \
@@ -350,6 +351,9 @@ ifeq ($(CONFIG_SAMBA4_SERVER_AD_DC),)
 	$(SED) '/"dns.resolver":/d' $(PKG_BUILD_DIR)/third_party/wscript
 	# unbundle iso8601
 	$(SED) '/"iso8601":/d' $(PKG_BUILD_DIR)/third_party/wscript
+endif
+ifeq ($(CONFIG_HOST_OS_MACOS),y)
+	$(SED) "/^VERSION=/i sys.platform='linux'" $(PKG_BUILD_DIR)/buildtools/bin/waf
 endif
 endef
 
